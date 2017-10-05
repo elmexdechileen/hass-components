@@ -24,18 +24,36 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
 
     # Assign configuration variables. The configuration check takes care they are
     # present.
-    # host = config.get(CONF_HOST)
-    # port = config.get(CONF_PORT)
-    host = "192.168.1.166"
-    port = 1234
-    nrelay = 8
+    host = config.get('relay_controller_address')
+    if not host:
+        _LOGGER.error(
+            "The required parameter 'relay_controller_address'"
+            " was not found in config"
+        )
+        return False
+
+    nrelay = config.get('number_relays')
+    if not host:
+        _LOGGER.error(
+            "The required parameter 'number_relays'"
+            " was not found in config"
+        )
+        return False
+
+    port = config.get('relay_controller_port')
+    if not host:
+        _LOGGER.error(
+            "The required parameter 'relay_controller_port'"
+            " was not found in config"
+        )
+        return False
 
     rl = ar.EightChanRelay(host, port, nrelay)
 
     # Verify that passed in configuration works
-    # if not rl.is_valid_login():
-    #    _LOGGER.error("Could not connect to relay")
-    #    return False
+    if not rl:
+        _LOGGER.error("Could not connect to relay")
+        return False
 
     # Add devices
     add_devices(RelayLight(relay) for relay in rl.relays)
