@@ -52,7 +52,6 @@ class pwmlight(Light):
     def __init__(self, name, max_level,
                  min_level, gpio_pin, pi1):
         """Initialize an AwesomeLight."""
-        self._light = light
         self._name = name
         self._max_level = max_level
         self._min_level = min_level
