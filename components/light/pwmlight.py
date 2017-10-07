@@ -41,15 +41,15 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
 
 
     # Add devices
-    add_devices(pwmlight(light, friendly_name, max_level,
+    add_devices(pwmlight(friendly_name, max_level,
                          min_level, gpio_pin, pi1))
 
 
 
 class pwmlight(Light):
-    """Representation of an Awesome Light."""
+    """PWM Light"""
 
-    def __init__(self, light, name, max_level,
+    def __init__(self, name, max_level,
                  min_level, gpio_pin, pi1):
         """Initialize an AwesomeLight."""
         self._light = light
