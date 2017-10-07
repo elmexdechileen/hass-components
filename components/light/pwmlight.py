@@ -1,264 +1,122 @@
 """
 Support for dimmable lights controlled with the RPI PWM
 """
+
 import logging
-import asyncio
 
 import voluptuous as vol
 
-from homeassistant.core import callback
-from homeassistant.components.light import (
-    ATTR_BRIGHTNESS, ENTITY_ID_FORMAT, Light, SUPPORT_BRIGHTNESS)
-from homeassistant.const import (
-    CONF_VALUE_TEMPLATE, CONF_ENTITY_ID, CONF_FRIENDLY_NAME, STATE_ON,
-    STATE_OFF, EVENT_HOMEASSISTANT_START, MATCH_ALL
-)
-from homeassistant.helpers.config_validation import PLATFORM_SCHEMA
-from homeassistant.exceptions import TemplateError
+# Import the device class from the component that you want to support
+from homeassistant.components.light import ATTR_BRIGHTNESS, Light, PLATFORM_SCHEMA
+from homeassistant.const import CONF_HOST, CONF_USERNAME, CONF_PASSWORD
 import homeassistant.helpers.config_validation as cv
-from homeassistant.helpers.entity import async_generate_entity_id
-from homeassistant.helpers.event import async_track_state_change
-from homeassistant.helpers.restore_state import async_get_last_state
-from homeassistant.helpers.script import Script
+
+# Home Assistant depends on 3rd party packages for API specific code.
+REQUIREMENTS = ['awesome_lights==1.2.3']
 
 _LOGGER = logging.getLogger(__name__)
-_VALID_STATES = [STATE_ON, STATE_OFF, 'true', 'false']
 
-CONF_LIGHTS = 'lights'
-CONF_ON_ACTION = 'turn_on'
-CONF_OFF_ACTION = 'turn_off'
-CONF_LEVEL_ACTION = 'set_level'
-CONF_LEVEL_TEMPLATE = 'level_template'
-
-LIGHT_SCHEMA = vol.Schema({
-    vol.Required(CONF_ON_ACTION): cv.SCRIPT_SCHEMA,
-    vol.Required(CONF_OFF_ACTION): cv.SCRIPT_SCHEMA,
-    vol.Optional(CONF_VALUE_TEMPLATE, default=None): cv.template,
-    vol.Optional(CONF_LEVEL_ACTION, default=None): cv.SCRIPT_SCHEMA,
-    vol.Optional(CONF_LEVEL_TEMPLATE, default=None): cv.template,
-    vol.Optional(CONF_FRIENDLY_NAME, default=None): cv.string,
-    vol.Optional(CONF_ENTITY_ID): cv.entity_ids
-})
-
+# Validation of the user's configuration
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
-    vol.Required(CONF_LIGHTS): vol.Schema({cv.slug: LIGHT_SCHEMA}),
+    #vol.Required(CONF_HOST): cv.string,
+    #vol.Optional(CONF_USERNAME, default='admin'): cv.string,
+    #vol.Optional(CONF_PASSWORD): cv.string,
 })
 
 
-@asyncio.coroutine
-def async_setup_platform(hass, config, async_add_devices, discovery_info=None):
-    import pigpio as pg
+def setup_platform(hass, config, add_devices, discovery_info=None):
+    """Setup the Awesome Light platform."""
+    import awesomelights
 
-    """Set up Template Lights."""
-    lights = []
+    # Assign configuration variables. The configuration check takes care they are
+    # present.
+    ''' Set max pwm dim level, this will be translated to
+        0-255 to comply with hass levels '''
+    max_level = config.get('maximum_level')
+    min_level = config.get('minimum_level')
+    gpio_pin = config.get('gpio_pin')
+    friendly_name = config.get('friendly_name')
+    # Setup connection with gpio
+    pi1 = pigpio.pi()
 
-    for device, device_config in config[CONF_LIGHTS].items():
-        friendly_name = device_config.get(CONF_FRIENDLY_NAME, device)
-        state_template = device_config[CONF_VALUE_TEMPLATE]
-        on_action = device_config[CONF_ON_ACTION]
-        off_action = device_config[CONF_OFF_ACTION]
-        level_action = device_config.get(CONF_LEVEL_ACTION)
-        level_template = device_config[CONF_LEVEL_TEMPLATE]
-        ''' Set max pwm dim level, this will be translated to
-            0-255 to comply with hass levels '''
-        max_level = config.get('maximum_level')
-        min_level = config.get('minimum_level')
-        gpio_pin = config.get('gpio_pin')
-        pi1 = pigpio.pi()
 
-        template_entity_ids = set()
+    # Add devices
+    add_devices(pwmlight(light, friendly_name, max_level,
+                         min_level, gpio_pin, pi1))
 
-        if state_template is not None:
-            temp_ids = state_template.extract_entities()
-            if str(temp_ids) != MATCH_ALL:
-                template_entity_ids |= set(temp_ids)
-
-        if level_template is not None:
-            temp_ids = level_template.extract_entities()
-            if str(temp_ids) != MATCH_ALL:
-                template_entity_ids |= set(temp_ids)
-
-        if not template_entity_ids:
-            template_entity_ids = MATCH_ALL
-
-        entity_ids = device_config.get(CONF_ENTITY_ID, template_entity_ids)
-
-        lights.append(
-            pwmlight(
-                hass, device, friendly_name, state_template,
-                on_action, off_action, level_action, level_template,
-                max_level, min_level, gpio_pin, pi1, entity_ids)
-        )
-
-    if not lights:
-        _LOGGER.error("No lights added")
-        return False
-
-    async_add_devices(lights, True)
-    return True
 
 
 class pwmlight(Light):
-    """Representation of a templated Light, including dimmable."""
+    """Representation of an Awesome Light."""
 
-    def __init__(self, hass, device_id, friendly_name, state_template,
-                 on_action, off_action, level_action, level_template,
-                 max_level, min_level, gpio_pin, pi1, entity_ids):
-        """Initialize the light."""
-        self.hass = hass
-        self.entity_id = async_generate_entity_id(
-            ENTITY_ID_FORMAT, device_id, hass=hass)
-        self._name = friendly_name
-        self._template = state_template
-        self._on_script = Script(hass, on_action)
-        self._off_script = Script(hass, off_action)
-        self._level_script = None
-        if level_action is not None:
-            self._level_script = Script(hass, level_action)
-        self._level_template = level_template
-
-        self._state = False
-        self._brightness = None
-        self._entities = entity_ids
-
-        if self._template is not None:
-            self._template.hass = self.hass
-        if self._level_template is not None:
-            self._level_template.hass = self.hass
-
+    def __init__(self, light, name, max_level,
+                 min_level, gpio_pin, pi1):
+        """Initialize an AwesomeLight."""
+        self._light = light
+        self._name = name
         self._max_level = max_level
         self._min_level = min_level
         self._gpio_pin = gpio_pin
         self._pi1 = pi1
-        self._range = (max_level - min_level)
-        self._fade_conv = self._range / 255
-
-    @property
-    def brightness(self):
-        """Return the brightness of the light."""
-        dc = self._pi1.get_PWM_frequency(self._gpio_pin)
-        'Set brightness'
-        self._pi1.hardware_PWM(self._gpio_pin, 2000, ((dc - min_level) / self._fade_conv))
-        return (dc - min_level) / self._fade_conv
-
+        self._state = None
+        self._brightness = None
+        self._convfactor = (max_level - min_level) / 255
     @property
     def name(self):
         """Return the display name of this light."""
         return self._name
 
     @property
-    def supported_features(self):
-        """Flag supported features."""
-        if self._level_script is not None:
-            return SUPPORT_BRIGHTNESS
+    def brightness(self):
+        """Return the brightness of the light.
 
-        return 0
+        This method is optional. Removing it indicates to Home Assistant
+        that brightness is not supported for this light.
+        """
+
+        """Return the brightness of the light."""
+        dc = self._pi1.get_PWM_frequency(self._gpio_pin)
+        'Set brightness'
+        #self._pi1.hardware_PWM(self._gpio_pin, 2000, ((dc - min_level) / self._fade_conv))
+
+        return (dc - min_level) / self._fade_conv
 
     @property
     def is_on(self):
-        """Return true if device is on."""
+        """Return true if light is on."""
+        return self._state
+
+    def turn_on(self, **kwargs):
+        """Instruct the light to turn on.
+
+        You can skip the brightness part if your light does not support
+        brightness control.
+        """
+        self._pi1.hardware_PWM(self._gpio_pin, 2000,
+                               self.conv_brightness(args.get(ATTR_BRIGHTNESS, 255), None))
+
+    def turn_off(self, **kwargs):
+        """Instruct the light to turn off."""
+        self._pi1.hardware_PWM(self._gpio_pin, 2000, self._min_level)
+
+    def update(self):
+        """Fetch new state data for this light.
+
+        This is the only method that should fetch new data for Home Assistant.
+        """
+        self._light.update()
         if self._pi1.get_PWM_frequency(self._gpio_pin) > self._min_level:
-            return True
-        else:
-            return False
-
-    @property
-    def should_poll(self):
-        """Return the polling state."""
-        return False
-
-    @asyncio.coroutine
-    def async_added_to_hass(self):
-        """Register callbacks."""
-        state = yield from async_get_last_state(self.hass, self.entity_id)
-        if state:
-            self._state = state.state == STATE_ON
-
-        @callback
-        def template_light_state_listener(entity, old_state, new_state):
-            """Handle target device state changes."""
-            self.async_schedule_update_ha_state(True)
-
-        @callback
-        def template_light_startup(event):
-            """Update template on startup."""
-            if (self._template is not None or
-                    self._level_template is not None):
-                async_track_state_change(
-                    self.hass, self._entities, template_light_state_listener)
-
-            self.async_schedule_update_ha_state(True)
-
-        self.hass.bus.async_listen_once(
-            EVENT_HOMEASSISTANT_START, template_light_startup)
-
-    @asyncio.coroutine
-    def async_turn_on(self, **kwargs):
-        """Turn the light on."""
-        optimistic_set = False
-        # set optimistic states
-        if self._template is None:
             self._state = True
-            optimistic_set = True
-
-        if self._level_template is None and ATTR_BRIGHTNESS in kwargs:
-            _LOGGER.info("Optimistically setting brightness to %s",
-                         kwargs[ATTR_BRIGHTNESS])
-            self._brightness = kwargs[ATTR_BRIGHTNESS]
-            optimistic_set = True
-
-        if ATTR_BRIGHTNESS in kwargs and self._level_script:
-            self.hass.async_add_job(self._level_script.async_run(
-                {"brightness": kwargs[ATTR_BRIGHTNESS]}))
         else:
-            self.hass.async_add_job(self._on_script.async_run())
-
-        if optimistic_set:
-            self.async_schedule_update_ha_state()
-
-    @asyncio.coroutine
-    def async_turn_off(self, **kwargs):
-        """Turn the light off."""
-
-
-        self.hass.async_add_job(self._off_script.async_run())
-        if self._template is None:
             self._state = False
-            self.async_schedule_update_ha_state()
 
-    @asyncio.coroutine
-    def async_update(self):
-        """Update the state from the template."""
-        if self._template is not None:
-            try:
-                state = self._template.async_render().lower()
-            except TemplateError as ex:
-                _LOGGER.error(ex)
-                self._state = None
+        self._brightness = self.conv_brightness(None,
+                                                self._pi1.get_PWM_frequency(self._gpio_pin))
 
-            if state in _VALID_STATES:
-                self._state = state in ('true', STATE_ON)
-            else:
-                _LOGGER.error(
-                    'Received invalid light is_on state: %s. ' +
-                    'Expected: %s',
-                    state, ', '.join(_VALID_STATES))
-                self._state = None
+    def conv_brightness(self, brightness, freq):
+        '''Takes the brightness and converts it to frequency'''
+        if brightness is not None:
+            return brightness * self._convfactor + self._min_level
+        elif freq is not None:
+            return (freq - self._min_level) / self._convfactor
 
-        if self._level_template is not None:
-            try:
-                brightness = self._level_template.async_render()
-            except TemplateError as ex:
-                _LOGGER.error(ex)
-                self._state = None
-
-            if 0 <= int(brightness) <= 255:
-                self._brightness = brightness
-                'Set value'
-
-            else:
-                _LOGGER.error(
-                    'Received invalid brightness : %s' +
-                    'Expected: 0-255',
-                    brightness)
-                self._brightness = None
