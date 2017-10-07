@@ -92,7 +92,7 @@ class pwmlight(Light):
         brightness control.
         """
         self._pi1.hardware_PWM(self._gpio_pin, 2000,
-                               self.conv_brightness(args.get(ATTR_BRIGHTNESS, 255), None))
+                               self.conv_brightness(kwargs.get(ATTR_BRIGHTNESS, 255), None))
 
     def turn_off(self, **kwargs):
         """Instruct the light to turn off."""
