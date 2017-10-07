@@ -103,7 +103,7 @@ class pwmlight(Light):
 
         This is the only method that should fetch new data for Home Assistant.
         """
-        self._light.update()
+
         if self._pi1.get_PWM_frequency(self._gpio_pin) > self._min_level:
             self._state = True
         else:
