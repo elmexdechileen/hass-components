@@ -12,7 +12,7 @@ from homeassistant.const import CONF_HOST, CONF_USERNAME, CONF_PASSWORD
 import homeassistant.helpers.config_validation as cv
 
 # Home Assistant depends on 3rd party packages for API specific code.
-REQUIREMENTS = ['awesome_lights==1.2.3']
+REQUIREMENTS = ['pigpio==1.38']
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
 
 def setup_platform(hass, config, add_devices, discovery_info=None):
     """Setup the Awesome Light platform."""
-    import awesomelights
+    import pigpio
 
     # Assign configuration variables. The configuration check takes care they are
     # present.
