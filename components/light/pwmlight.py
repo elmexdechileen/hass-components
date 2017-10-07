@@ -41,8 +41,8 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
 
 
     # Add devices
-    add_devices(pwmlight(friendly_name, max_level,
-                         min_level, gpio_pin, pi1))
+    add_devices([pwmlight(friendly_name, max_level,
+                         min_level, gpio_pin, pi1)])
 
 
 
