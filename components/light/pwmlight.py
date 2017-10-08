@@ -26,7 +26,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
 
 def setup_platform(hass, config, add_devices, discovery_info=None):
     """Setup the Awesome Light platform."""
-    import pwmlight
+    import pwmlight as pl
 
     # Assign configuration variables. The configuration check takes care they are
     # present.
@@ -38,8 +38,8 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
     friendly_name = config.get('friendly_name')
 
     # Add devices
-    add_devices([PwmLight(pwmlight(gpio_pin, min_level,
-                         max_level, friendly_name), friendly_name)])
+    add_devices([PwmLight(pl.pwmlight(gpio_pin, min_level,
+                         max_level, friendly_name))])
 
 
 
