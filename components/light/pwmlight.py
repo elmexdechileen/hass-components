@@ -43,7 +43,7 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
 
 
 
-class PwmLight(Light):
+class pwmlight(Light):
     """Representation of an Awesome Light."""
 
     def __init__(self, light):
