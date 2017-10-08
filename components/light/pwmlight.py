@@ -38,12 +38,12 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
     friendly_name = config.get('friendly_name')
 
     # Add devices
-    add_devices([pwmlight(gpio_pin, min_level,
-                         max_level, friendly_name)])
+    add_devices([PwmLight(pwmlight(gpio_pin, min_level,
+                         max_level, friendly_name))])
 
 
 
-class pwmlight(Light):
+class PwmLight(Light):
     """Representation of an Awesome Light."""
 
     def __init__(self, light):
