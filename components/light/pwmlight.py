@@ -46,10 +46,10 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
 class PwmLight(Light):
     """Representation of an Awesome Light."""
 
-    def __init__(self, light, friendly_name):
+    def __init__(self, light):
         """Initialize an AwesomeLight."""
         self._light = light
-        self._name = friendly_name
+        self._name = self._light.name
         self._state = None
         self._brightness = None
 
