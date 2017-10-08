@@ -78,7 +78,7 @@ class PwmLight(Light):
         You can skip the brightness part if your light does not support
         brightness control.
         """
-        self._light.setBrightness(kwargs.get(ATTR_BRIGHTNESS, 255))
+        self._light.setBrightness(int(kwargs.get(ATTR_BRIGHTNESS, 255)))
         self._light.turnOn()
 
     def turn_off(self, **kwargs):
