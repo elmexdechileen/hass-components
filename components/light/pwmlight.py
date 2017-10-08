@@ -12,7 +12,7 @@ from homeassistant.const import CONF_HOST, CONF_USERNAME, CONF_PASSWORD
 import homeassistant.helpers.config_validation as cv
 
 # Home Assistant depends on 3rd party packages for API specific code.
-REQUIREMENTS = ['pwmlight==0.1']
+REQUIREMENTS = ['pwmlight==0.2']
 
 _LOGGER = logging.getLogger(__name__)
 
