@@ -13,6 +13,7 @@ from datetime import timedelta
 import voluptuous as vol
 import requests
 
+from homeassistant.loader import get_component
 from homeassistant.core import callback
 from homeassistant.components.http import HomeAssistantView
 from homeassistant.helpers import discovery
@@ -24,7 +25,7 @@ from homeassistant.const import (
 from homeassistant.helpers.entity import Entity
 import homeassistant.helpers.config_validation as cv
 
-REQUIREMENTS = ['python-wink==1.5.1', 'pubnubsub-handler==1.0.2']
+REQUIREMENTS = ['python-wink==1.4.2', 'pubnubsub-handler==1.0.2']
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -102,7 +103,7 @@ def _read_config_file(file_path):
 def _request_app_setup(hass, config):
     """Assist user with configuring the Wink dev application."""
     hass.data[DOMAIN]['configurator'] = True
-    configurator = hass.components.configurator
+    configurator = get_component('configurator')
 
     # pylint: disable=unused-argument
     def wink_configuration_callback(callback_data):
@@ -137,7 +138,7 @@ def _request_app_setup(hass, config):
                      """.format(start_url)
 
     hass.data[DOMAIN]['configuring'][DOMAIN] = configurator.request_config(
-        DOMAIN, wink_configuration_callback,
+        hass, DOMAIN, wink_configuration_callback,
         description=description, submit_caption="submit",
         description_image="/static/images/config_wink.png",
         fields=[{'id': 'client_id', 'name': 'Client ID', 'type': 'string'},
@@ -150,7 +151,7 @@ def _request_app_setup(hass, config):
 def _request_oauth_completion(hass, config):
     """Request user complete Wink OAuth2 flow."""
     hass.data[DOMAIN]['configurator'] = True
-    configurator = hass.components.configurator
+    configurator = get_component('configurator')
     if DOMAIN in hass.data[DOMAIN]['configuring']:
         configurator.notify_errors(
             hass.data[DOMAIN]['configuring'][DOMAIN],
@@ -167,7 +168,7 @@ def _request_oauth_completion(hass, config):
     description = "Please authorize Wink by visiting {}".format(start_url)
 
     hass.data[DOMAIN]['configuring'][DOMAIN] = configurator.request_config(
-        DOMAIN, wink_configuration_callback,
+        hass, DOMAIN, wink_configuration_callback,
         description=description
     )
 
@@ -200,19 +201,11 @@ def setup(hass, config):
             return False
         pywink.set_bearer_token(token)
 
-    if config.get(DOMAIN) is not None:
-        client_id = config[DOMAIN].get(ATTR_CLIENT_ID)
-        client_secret = config[DOMAIN].get(ATTR_CLIENT_SECRET)
-        email = config[DOMAIN].get(CONF_EMAIL)
-        password = config[DOMAIN].get(CONF_PASSWORD)
-        local_control = config[DOMAIN].get(CONF_LOCAL_CONTROL)
-    else:
-        client_id = None
-        client_secret = None
-        email = None
-        password = None
-        local_control = None
-        hass.data[DOMAIN]['configurator'] = True
+    client_id = config[DOMAIN].get(ATTR_CLIENT_ID)
+    client_secret = config[DOMAIN].get(ATTR_CLIENT_SECRET)
+    email = config[DOMAIN].get(CONF_EMAIL)
+    password = config[DOMAIN].get(CONF_PASSWORD)
+    local_control = config[DOMAIN].get(CONF_LOCAL_CONTROL)
     if None not in [client_id, client_secret]:
         _LOGGER.info("Using legacy oauth authentication")
         if not local_control:
@@ -247,7 +240,7 @@ def setup(hass, config):
 
         if DOMAIN in hass.data[DOMAIN]['configuring']:
             _configurator = hass.data[DOMAIN]['configuring']
-            hass.components.configurator.request_done(_configurator.pop(
+            get_component('configurator').request_done(_configurator.pop(
                 DOMAIN))
 
         # Using oauth
